@@ -35,12 +35,7 @@ export function AgentDemoPage() {
         aiMl={agentOutputs.aiMl}
         erp={agentOutputs.erp}
       />
-      <LiveAgentConsole
-        dataset={mockMarliTrainingData}
-        hse={agentOutputs.hse}
-        aiMl={agentOutputs.aiMl}
-        erp={agentOutputs.erp}
-      />
+      <LiveAgentConsole dataset={mockMarliTrainingData} />
 
       <section className="agent-grid" aria-label="Agentes CTRL+HACK">
         <HseAgentCard output={agentOutputs.hse} />

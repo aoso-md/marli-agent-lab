@@ -23,7 +23,7 @@ export interface MarliTrainingDataset {
   operatorsBelowThreshold: number;
   evidenceFieldsCompleted: number;
   evidenceFieldsRequired: number;
-  supervisorValidationStatus: 'pending' | 'validated' | 'rejected';
+  supervisorValidationStatus: 'pending' | 'validated' | 'approved' | 'rejected';
   failedConcepts: string[];
   plannedCompletionRate: number;
   actualCompletionRate: number;
