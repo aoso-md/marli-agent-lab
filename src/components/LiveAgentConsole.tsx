@@ -28,17 +28,17 @@ interface LiveAgentOutputs {
 interface QueueEvent {
   source: 'hse_agent' | 'ai_ml_agent' | 'erp_agent';
   event: HseAgentOutput['standardEvent'] | AiMlAgentOutput['standardEvent'] | ErpAgentOutput['standardEvent'];
-  category: 'safety' | 'process_intelligence' | 'management';
   status: 'ready_to_emit';
 }
 
-const CONSOLE_STEP_DELAY_MS = 650;
+const CONSOLE_STEP_DELAY_MS = 520;
+
 const steps: ConsoleStep[] = [
-  { id: 'payload', label: 'Payload preparado', log: '[1] Input parsed' },
-  { id: 'hse', label: 'HSE Agent ejecutado', log: '[2] HSE Agent executed' },
-  { id: 'aiMl', label: 'AI/ML Agent ejecutado', log: '[3] AI/ML Agent executed' },
-  { id: 'erp', label: 'ERP Agent ejecutado', log: '[4] ERP Agent executed' },
-  { id: 'queue', label: 'Event queue lista', log: '[5] Events ready for API/IES/event bus' },
+  { id: 'payload', label: 'Input parsed', log: '[1] Input parsed' },
+  { id: 'hse', label: 'HSE Agent executed', log: '[2] HSE Agent executed' },
+  { id: 'aiMl', label: 'AI/ML Agent executed', log: '[3] AI/ML Agent executed' },
+  { id: 'erp', label: 'ERP Agent executed', log: '[4] ERP Agent executed' },
+  { id: 'queue', label: 'Events ready for API/IES/event bus', log: '[5] Events ready for API/IES/event bus' },
 ];
 
 const requiredFields = [
@@ -72,23 +72,11 @@ function hasRequiredFields(value: unknown): value is MarliTrainingDataset {
 
   const candidate = value as Record<string, unknown>;
 
-  return requiredFields.every((field) => field in candidate) && Array.isArray(candidate.failedConcepts) && Array.isArray(candidate.events);
-}
-
-function buildInputPayload(dataset: MarliTrainingDataset) {
-  return {
-    moduleId: dataset.moduleId,
-    averageReadiness: dataset.averageReadiness,
-    failedConcepts: dataset.failedConcepts,
-    supervisorValidationStatus: dataset.supervisorValidationStatus,
-    trainingEvents: dataset.events.length,
-    operatorsAssigned: dataset.operatorsAssigned,
-    operatorsCompleted: dataset.operatorsCompleted,
-    completionRate: dataset.actualCompletionRate,
-    plannedReadiness: dataset.plannedReadiness,
-    actualReadiness: dataset.actualReadiness,
-    evidenceCompleteness: `${dataset.evidenceFieldsCompleted}/${dataset.evidenceFieldsRequired}`,
-  };
+  return (
+    requiredFields.every((field) => field in candidate) &&
+    Array.isArray(candidate.failedConcepts) &&
+    Array.isArray(candidate.events)
+  );
 }
 
 function buildQueueEvents(outputs: LiveAgentOutputs): QueueEvent[] {
@@ -96,22 +84,27 @@ function buildQueueEvents(outputs: LiveAgentOutputs): QueueEvent[] {
     {
       source: 'hse_agent',
       event: outputs.hse.standardEvent,
-      category: 'safety',
       status: 'ready_to_emit',
     },
     {
       source: 'ai_ml_agent',
       event: outputs.aiMl.standardEvent,
-      category: 'process_intelligence',
       status: 'ready_to_emit',
     },
     {
       source: 'erp_agent',
       event: outputs.erp.standardEvent,
-      category: 'management',
       status: 'ready_to_emit',
     },
   ];
+}
+
+function createOutputs(dataset: MarliTrainingDataset): LiveAgentOutputs {
+  return {
+    hse: runHseAgent(dataset),
+    aiMl: runAiMlAgent(dataset),
+    erp: runErpAgent(dataset),
+  };
 }
 
 export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
@@ -120,26 +113,15 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState('');
   const [activeDataset, setActiveDataset] = useState(dataset);
-  const [outputs, setOutputs] = useState<LiveAgentOutputs>({
-    hse: runHseAgent(dataset),
-    aiMl: runAiMlAgent(dataset),
-    erp: runErpAgent(dataset),
-  });
+  const [outputs, setOutputs] = useState<LiveAgentOutputs>(createOutputs(dataset));
   const [executionStarted, setExecutionStarted] = useState(false);
 
   const activeStep = steps[currentStep];
-  const payloadVisible = executionStarted;
-  const hseVisible = executionStarted && currentStep >= 1;
-  const aiMlVisible = executionStarted && currentStep >= 2;
-  const erpVisible = executionStarted && currentStep >= 3;
-  const queueVisible = executionStarted && currentStep >= 4;
-
-  const hseRiskRuleMatched =
-    activeDataset.averageReadiness < 75 && activeDataset.failedConcepts.includes('energia_cero');
-
-  const inputPayload = useMemo(() => buildInputPayload(activeDataset), [activeDataset]);
-  const queueEvents = useMemo(() => buildQueueEvents(outputs), [outputs]);
   const visibleLogs = steps.slice(0, executionStarted ? currentStep + 1 : 0);
+  const queueEvents = useMemo(() => buildQueueEvents(outputs), [outputs]);
+  const showResults = executionStarted;
+  const showQueue = executionStarted && currentStep >= 4;
+  const actionRecommendation = outputs.erp.suggestedBusinessAction || outputs.hse.recommendation;
 
   useEffect(() => {
     if (!isRunning) {
@@ -160,12 +142,18 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
     return () => window.clearTimeout(timeoutId);
   }, [currentStep, isRunning]);
 
-  function loadDataset(nextDataset: MarliTrainingDataset) {
-    setJsonInput(formatDataset(nextDataset));
+  function resetRunState() {
     setError('');
     setIsRunning(false);
     setExecutionStarted(false);
     setCurrentStep(0);
+  }
+
+  function loadDataset(nextDataset: MarliTrainingDataset) {
+    setJsonInput(formatDataset(nextDataset));
+    setActiveDataset(nextDataset);
+    setOutputs(createOutputs(nextDataset));
+    resetRunState();
   }
 
   function loadScenario(overrides: Partial<MarliTrainingDataset>) {
@@ -181,11 +169,7 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
       }
 
       const nextDataset = parsed;
-      const nextOutputs = {
-        hse: runHseAgent(nextDataset),
-        aiMl: runAiMlAgent(nextDataset),
-        erp: runErpAgent(nextDataset),
-      };
+      const nextOutputs = createOutputs(nextDataset);
 
       setActiveDataset(nextDataset);
       setOutputs(nextOutputs);
@@ -203,293 +187,271 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
 
   function clearInput() {
     setJsonInput('');
-    setError('');
-    setIsRunning(false);
-    setExecutionStarted(false);
-    setCurrentStep(0);
+    resetRunState();
   }
 
   return (
-    <section className="live-console" aria-label="Live Agent Execution Console">
+    <section className="live-console" aria-label="MARLI Supervisor Agent Console">
       <div className="console-header">
         <div>
-          <p className="section-kicker">Live Agent Execution Console · datos mock</p>
-          <h2>Agentes modulares con input editable en vivo</h2>
+          <p className="section-kicker">fase piloto · datos mock · evidencia interna</p>
+          <h2>MARLI Supervisor Agent Console</h2>
           <p>
-            Pega o edita un MARLI Training Dataset JSON para recalcular readiness operativo,
-            evidencia interna y eventos estándar. Fase piloto: AI recomienda, humano valida.
+            Ingresa o carga un MARLI Training Dataset, ejecuta agentes y revisa recomendación de
+            supervisor, output técnico y eventos estándar listos para ecosistema.
           </p>
         </div>
-        <button className="demo-button primary console-run-button" type="button" onClick={executeAgents} disabled={isRunning}>
-          Ejecutar agentes
-        </button>
+        <span className="console-mode-badge">AI recomienda, humano valida</span>
       </div>
 
-      <div className="console-editor-card">
-        <div className="console-editor-header">
-          <label htmlFor="marli-training-dataset-input">Input MARLI Training Dataset</label>
-          <span>datos mock · validación por supervisor</span>
-        </div>
-        <textarea
-          id="marli-training-dataset-input"
-          className="json-input"
-          value={jsonInput}
-          onChange={(event: { target: HTMLTextAreaElement }) => setJsonInput(event.target.value)}
-          spellCheck={false}
-          rows={18}
-        />
-        <div className="console-actions" aria-label="Acciones de input editable">
-          <button className="demo-button secondary" type="button" onClick={() => loadDataset(dataset)}>
-            Cargar ejemplo LOTO M1
-          </button>
-          <button className="demo-button primary" type="button" onClick={executeAgents} disabled={isRunning}>
+      <div className="console-layout">
+        <section className="console-panel input-panel" aria-labelledby="input-panel-title">
+          <div className="console-panel-header">
+            <span>1</span>
+            <h3 id="input-panel-title">Ingresar dataset MARLI</h3>
+          </div>
+          <div className="console-editor-header">
+            <label htmlFor="marli-training-dataset-input">Input MARLI Training Dataset</label>
+            <span>{activeDataset.moduleName}</span>
+          </div>
+          <textarea
+            id="marli-training-dataset-input"
+            className="json-input"
+            value={jsonInput}
+            onChange={(event: { target: HTMLTextAreaElement }) => setJsonInput(event.target.value)}
+            spellCheck={false}
+            rows={16}
+          />
+          <div className="console-actions" aria-label="Acciones de input editable">
+            <button className="demo-button secondary" type="button" onClick={() => loadDataset(dataset)}>
+              Cargar LOTO M1
+            </button>
+            <button
+              className="demo-button secondary"
+              type="button"
+              onClick={() =>
+                loadScenario({
+                  averageReadiness: 88,
+                  actualReadiness: 88,
+                  plannedReadiness: 85,
+                  operatorsCompleted: 29,
+                  operatorsAssigned: 30,
+                  failedConcepts: [],
+                  supervisorValidationStatus: 'approved',
+                  actualCompletionRate: 97,
+                  plannedCompletionRate: 90,
+                  evidenceFieldsCompleted: 8,
+                  evidenceFieldsRequired: 8,
+                  operatorsBelowThreshold: 1,
+                })
+              }
+            >
+              Escenario sano
+            </button>
+            <button
+              className="demo-button warning"
+              type="button"
+              onClick={() =>
+                loadScenario({
+                  averageReadiness: 55,
+                  actualReadiness: 55,
+                  plannedReadiness: 85,
+                  operatorsCompleted: 15,
+                  operatorsAssigned: 30,
+                  failedConcepts: ['energia_cero', 'bloqueo', 'try_out'],
+                  supervisorValidationStatus: 'pending',
+                  actualCompletionRate: 50,
+                  plannedCompletionRate: 90,
+                  evidenceFieldsCompleted: 3,
+                  evidenceFieldsRequired: 8,
+                  operatorsBelowThreshold: 15,
+                })
+              }
+            >
+              Escenario crítico
+            </button>
+            <button className="demo-button ghost" type="button" onClick={clearInput}>
+              Limpiar input
+            </button>
+          </div>
+        </section>
+
+        <section className="console-panel run-panel" aria-labelledby="run-panel-title">
+          <div className="console-panel-header">
+            <span>2</span>
+            <h3 id="run-panel-title">Ejecutar agentes</h3>
+          </div>
+          <button className="demo-button primary run-cta" type="button" onClick={executeAgents} disabled={isRunning}>
             Ejecutar agentes
           </button>
-          <button className="demo-button ghost" type="button" onClick={clearInput}>
-            Limpiar input
-          </button>
-        </div>
-      </div>
-
-      <div className="scenario-panel" aria-label="Demo scenarios">
-        <div>
-          <p className="section-kicker">Demo scenarios</p>
-          <h3>Quick-fill para comparar señales de riesgo preventivo de capacitación</h3>
-        </div>
-        <div className="scenario-buttons">
-          <button
-            className="scenario-button"
-            type="button"
-            onClick={() =>
-              loadScenario({
-                averageReadiness: 72,
-                actualReadiness: 72,
-                plannedReadiness: 85,
-                operatorsCompleted: 24,
-                operatorsAssigned: 30,
-                failedConcepts: ['energia_cero', 'bloqueo'],
-                supervisorValidationStatus: 'pending',
-              })
-            }
-          >
-            Escenario base: riesgo alto
-          </button>
-          <button
-            className="scenario-button"
-            type="button"
-            onClick={() =>
-              loadScenario({
-                averageReadiness: 88,
-                actualReadiness: 88,
-                plannedReadiness: 85,
-                operatorsCompleted: 29,
-                operatorsAssigned: 30,
-                failedConcepts: [],
-                supervisorValidationStatus: 'approved',
-                actualCompletionRate: 97,
-                plannedCompletionRate: 90,
-                evidenceFieldsCompleted: 8,
-                evidenceFieldsRequired: 8,
-                operatorsBelowThreshold: 1,
-              })
-            }
-          >
-            Escenario mejorado: readiness sano
-          </button>
-          <button
-            className="scenario-button danger"
-            type="button"
-            onClick={() =>
-              loadScenario({
-                averageReadiness: 55,
-                actualReadiness: 55,
-                plannedReadiness: 85,
-                operatorsCompleted: 15,
-                operatorsAssigned: 30,
-                failedConcepts: ['energia_cero', 'bloqueo', 'try_out'],
-                supervisorValidationStatus: 'pending',
-                actualCompletionRate: 50,
-                plannedCompletionRate: 90,
-                evidenceFieldsCompleted: 3,
-                evidenceFieldsRequired: 8,
-                operatorsBelowThreshold: 15,
-              })
-            }
-          >
-            Escenario crítico: retrasado
-          </button>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="error-card" role="alert">
-          <strong>{error}</strong>
-          <span>Campos requeridos: {requiredFields.join(', ')}.</span>
-        </div>
-      ) : null}
-
-      <div className="console-status" aria-live="polite">
-        <span className={isRunning ? 'console-dot running' : 'console-dot'} />
-        <strong>{isRunning ? 'Ejecutando agentes...' : activeStep.label}</strong>
-        <span>fase piloto · evidencia interna · readiness operativo</span>
-      </div>
-
-      <div className="execution-log" aria-label="Terminal-like execution log">
-        {visibleLogs.length > 0 ? (
-          visibleLogs.map((step) => <code key={step.id}>{step.log}</code>)
-        ) : (
-          <code>[0] Esperando input JSON editable</code>
-        )}
-      </div>
-
-      <div className="console-grid">
-        <section className="console-panel console-payload">
-          <div className="console-panel-header">
-            <span>01</span>
-            <h3>Payload prepared</h3>
-          </div>
-          {payloadVisible ? (
-            <pre className="code-block">
-              <code>{JSON.stringify(inputPayload, null, 2)}</code>
-            </pre>
-          ) : (
-            <p className="muted">El payload se revela después de ejecutar agentes con JSON válido.</p>
-          )}
-        </section>
-
-        <section className="console-panel console-agents" aria-label="Tres agentes en ejecución">
-          <div className="console-panel-header">
-            <span>02</span>
-            <h3>Generated output cards</h3>
-          </div>
-
-          <article className={hseVisible ? 'execution-card active hse-execution' : 'execution-card'}>
-            <div>
-              <span className="agent-tag">HSE Agent</span>
-              <h4>Riesgo preventivo de capacitación</h4>
+          {error ? (
+            <div className="error-card" role="alert">
+              <strong>{error}</strong>
+              <span>Campos requeridos: {requiredFields.join(', ')}.</span>
             </div>
-            <p>
-              Input vivo: averageReadiness {activeDataset.averageReadiness}, failedConcepts{' '}
-              {activeDataset.failedConcepts.join(', ') || 'sin brechas'}, supervisorValidationStatus{' '}
-              {activeDataset.supervisorValidationStatus}.
-            </p>
-            <p>
-              Logic: readiness &lt; 75 en LOTO M1 activa señal preventiva. Resultado de regla:{' '}
-              {hseRiskRuleMatched ? 'true' : 'false'}.
-            </p>
-            {hseVisible ? (
-              <div className="execution-output output-card-grid">
-                <strong>riskLevel: {outputs.hse.riskLevel}</strong>
-                <span>safetyGap: {outputs.hse.safetyGap}</span>
-                <span>validationStatus: {outputs.hse.validationStatus}</span>
-                <span>recommendation: {outputs.hse.recommendation}</span>
-                <span>standardEvent: {outputs.hse.standardEvent}</span>
-              </div>
-            ) : null}
-          </article>
-
-          <article className={aiMlVisible ? 'execution-card active aiml-execution' : 'execution-card'}>
-            <div>
-              <span className="agent-tag">AI/ML Agent</span>
-              <h4>Fricción de módulo</h4>
-            </div>
-            <p>Input vivo: eventos mock, intentos, respuestas lentas y etiquetas de conceptos fallidos.</p>
-            <p>
-              Logic: calcula tasas e índice de fricción; AI recomienda, humano valida antes de actuar.
-            </p>
-            {aiMlVisible ? (
-              <div className="execution-output output-card-grid">
-                <strong>patternDetected: {outputs.aiMl.patternDetected}</strong>
-                <span>conceptFailureRate: {formatPercent(outputs.aiMl.conceptFailureRate)}</span>
-                <span>retryRate: {formatPercent(outputs.aiMl.retryRate)}</span>
-                <span>slowResponseRate: {formatPercent(outputs.aiMl.slowResponseRate)}</span>
-                <span>moduleFrictionIndex: {outputs.aiMl.moduleFrictionIndex}</span>
-                <span>suspectedCause: {outputs.aiMl.suspectedCause}</span>
-                <span>recommendation: {outputs.aiMl.recommendation}</span>
-                <span>standardEvent: {outputs.aiMl.standardEvent}</span>
-              </div>
-            ) : null}
-          </article>
-
-          <article className={erpVisible ? 'execution-card active erp-execution' : 'execution-card'}>
-            <div>
-              <span className="agent-tag">ERP Agent</span>
-              <h4>Readiness vs plan operativo</h4>
-            </div>
-            <p>
-              Input vivo: {activeDataset.operatorsCompleted}/{activeDataset.operatorsAssigned} operadores,
-              plannedReadiness {activeDataset.plannedReadiness}, actualReadiness{' '}
-              {activeDataset.actualReadiness}.
-            </p>
-            <p>Logic: compara plan vs actual y evidencia interna de la fase piloto.</p>
-            {erpVisible ? (
-              <div className="execution-output output-card-grid">
-                <strong>projectHealth: {outputs.erp.projectHealth}</strong>
-                <span>completionRate: {formatPercent(outputs.erp.completionRate)}</span>
-                <span>averageReadiness: {activeDataset.averageReadiness}%</span>
-                <span>readinessGap: {outputs.erp.readinessGap} puntos</span>
-                <span>operatorsAtRisk: {outputs.erp.operatorsAtRisk}</span>
-                <span>evidenceCompleteness: {formatPercent(outputs.erp.evidenceCompleteness)}</span>
-                <span>plannedVsActualGap: {outputs.erp.plannedVsActualGap} puntos</span>
-                <span>suggestedBusinessAction: {outputs.erp.suggestedBusinessAction}</span>
-                <span>standardEvent: {outputs.erp.standardEvent}</span>
-              </div>
-            ) : null}
-          </article>
-        </section>
-
-        <section className="console-panel">
-          <div className="console-panel-header">
-            <span>03</span>
-            <h3>Output preview</h3>
+          ) : null}
+          <div className="console-status" aria-live="polite">
+            <span className={isRunning ? 'console-dot running' : 'console-dot'} />
+            <strong>{isRunning ? 'Ejecutando agentes...' : activeStep.label}</strong>
+            <span>readiness operativo · validación por supervisor</span>
           </div>
-          <div className="output-preview">
-            {hseVisible ? <span>HSE → riskLevel: {outputs.hse.riskLevel}</span> : <span>HSE → esperando ejecución</span>}
-            {aiMlVisible ? (
-              <span>AI/ML → patternDetected: {outputs.aiMl.patternDetected}</span>
+          <div className="execution-log" aria-label="Execution log">
+            {visibleLogs.length > 0 ? (
+              visibleLogs.map((step) => <code key={step.id}>{step.log}</code>)
             ) : (
-              <span>AI/ML → esperando ejecución</span>
-            )}
-            {erpVisible ? (
-              <span>ERP → projectHealth: {outputs.erp.projectHealth}</span>
-            ) : (
-              <span>ERP → esperando ejecución</span>
+              <code>[0] Esperando input JSON editable</code>
             )}
           </div>
         </section>
+      </div>
 
-        <section className="console-panel event-queue-panel">
-          <div className="console-panel-header">
-            <span>04</span>
-            <h3>Event Queue</h3>
-          </div>
-          {queueVisible ? (
+      <section className="console-panel supervisor-panel" aria-labelledby="supervisor-output-title">
+        <div className="console-panel-header">
+          <span>3</span>
+          <h3 id="supervisor-output-title">Output para supervisor</h3>
+        </div>
+        <article className={showResults ? 'supervisor-card active' : 'supervisor-card'}>
+          {showResults ? (
             <>
-              <div className="event-queue">
-                {queueEvents.map((queueEvent) => (
-                  <span className="event-badge" key={queueEvent.source}>
-                    {queueEvent.source} · {queueEvent.event} · {queueEvent.status}
-                  </span>
-                ))}
+              <div>
+                <p className="section-kicker">Recomendación final · evidencia interna</p>
+                <h4>{outputs.erp.projectHealth === 'Retrasado' ? 'Reforzar antes de escalar piloto' : 'Continuar con validación por supervisor'}</h4>
               </div>
-              <pre className="code-block event-code-preview">
-                <code>{JSON.stringify(queueEvents, null, 2)}</code>
-              </pre>
-              <p className="queue-note">
-                Eventos listos para API/IES/event bus cuando el ecosistema lo requiera; siguen siendo
-                datos mock y evidencia interna de fase piloto.
-              </p>
+              <dl className="supervisor-output-grid">
+                <div>
+                  <dt>Estado del piloto</dt>
+                  <dd>{outputs.erp.projectHealth}</dd>
+                </div>
+                <div>
+                  <dt>Riesgo HSE</dt>
+                  <dd>{outputs.hse.riskLevel}</dd>
+                </div>
+                <div>
+                  <dt>Fricción principal</dt>
+                  <dd>{outputs.aiMl.patternDetected}</dd>
+                </div>
+                <div>
+                  <dt>Acción recomendada</dt>
+                  <dd>{actionRecommendation}</dd>
+                </div>
+                <div>
+                  <dt>Validación</dt>
+                  <dd>{outputs.hse.validationStatus}</dd>
+                </div>
+              </dl>
             </>
           ) : (
-            <p className="muted">La cola se revela después de ejecutar HSE, AI/ML y ERP.</p>
+            <p>
+              Ejecuta los agentes para generar una recomendación con datos mock. MARLI entrega una
+              señal de fase piloto; la decisión final corresponde al supervisor.
+            </p>
           )}
-        </section>
-      </div>
+        </article>
+      </section>
 
-      <aside className="human-validation-note">
-        <strong>Human validation note:</strong> AI recomienda. Humano valida. Supervisor decide antes
-        de cualquier acción operativa.
-      </aside>
+      <section className="console-panel technical-panel" aria-labelledby="technical-output-title">
+        <div className="console-panel-header">
+          <span>4</span>
+          <h3 id="technical-output-title">Output técnico por agente</h3>
+        </div>
+        <div className="technical-grid">
+          <article className="technical-card hse-card">
+            <span className="agent-tag">HSE</span>
+            {showResults ? (
+              <dl className="compact-definition-list">
+                <div>
+                  <dt>riskLevel</dt>
+                  <dd>{outputs.hse.riskLevel}</dd>
+                </div>
+                <div>
+                  <dt>safetyGap</dt>
+                  <dd>{outputs.hse.safetyGap}</dd>
+                </div>
+                <div>
+                  <dt>standardEvent</dt>
+                  <dd>{outputs.hse.standardEvent}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="muted">Esperando ejecución.</p>
+            )}
+          </article>
+
+          <article className="technical-card aiml-card">
+            <span className="agent-tag">AI/ML</span>
+            {showResults ? (
+              <dl className="compact-definition-list">
+                <div>
+                  <dt>patternDetected</dt>
+                  <dd>{outputs.aiMl.patternDetected}</dd>
+                </div>
+                <div>
+                  <dt>moduleFrictionIndex</dt>
+                  <dd>{outputs.aiMl.moduleFrictionIndex}</dd>
+                </div>
+                <div>
+                  <dt>standardEvent</dt>
+                  <dd>{outputs.aiMl.standardEvent}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="muted">Esperando ejecución.</p>
+            )}
+          </article>
+
+          <article className="technical-card erp-card">
+            <span className="agent-tag">ERP</span>
+            {showResults ? (
+              <dl className="compact-definition-list">
+                <div>
+                  <dt>completionRate</dt>
+                  <dd>{formatPercent(outputs.erp.completionRate)}</dd>
+                </div>
+                <div>
+                  <dt>readinessGap</dt>
+                  <dd>{outputs.erp.readinessGap} pts</dd>
+                </div>
+                <div>
+                  <dt>projectHealth</dt>
+                  <dd>{outputs.erp.projectHealth}</dd>
+                </div>
+                <div>
+                  <dt>standardEvent</dt>
+                  <dd>{outputs.erp.standardEvent}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="muted">Esperando ejecución.</p>
+            )}
+          </article>
+        </div>
+      </section>
+
+      <section className="console-panel event-queue-panel" aria-labelledby="event-queue-title">
+        <div className="console-panel-header">
+          <span>5</span>
+          <h3 id="event-queue-title">Eventos listos para ecosistema</h3>
+        </div>
+        {showQueue ? (
+          <>
+            <div className="event-queue">
+              {queueEvents.map((queueEvent) => (
+                <span className="event-badge" key={queueEvent.source}>
+                  {queueEvent.event}
+                </span>
+              ))}
+            </div>
+            <pre className="code-block event-code-preview">
+              <code>{JSON.stringify(queueEvents, null, 2)}</code>
+            </pre>
+            <p className="queue-note">
+              Eventos estándar listos para API/IES/event bus como evidencia interna de fase piloto.
+            </p>
+          </>
+        ) : (
+          <p className="muted">La cola se activa al completar la ejecución HSE, AI/ML y ERP.</p>
+        )}
+      </section>
     </section>
   );
 }

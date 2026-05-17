@@ -16,13 +16,13 @@ export function runHseAgent(data: MarliTrainingDataset): HseAgentOutput {
     toolsUsed: ['track_safety_kpis', 'report_safety_incident', 'investigate_root_cause_hse'],
     inputSummary: `${data.process} · ${data.hazardType} · ${data.area} · ${data.shift}`,
     logicSummary:
-      'Interpreta bajo readiness en LOTO como riesgo preventivo de capacitación, no como accidente real.',
+      'Interpreta bajo readiness en LOTO como riesgo preventivo de capacitación para revisión interna del piloto.',
     riskLevel,
     safetyGap,
     validationStatus,
     recommendation: 'Reforzar verificación de energía cero antes de validación práctica.',
     evidenceNote:
-      'Evidencia interna generada en fase piloto. No representa cumplimiento STPS/DC-3 automático.',
+      'Evidencia interna generada en fase piloto para validación por supervisor.',
     standardEvent: 'safety_kpi_report',
   };
 }
