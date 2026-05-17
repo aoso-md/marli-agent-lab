@@ -2,6 +2,9 @@ declare module '*.css';
 
 declare module 'react' {
   export const StrictMode: (props: { children?: unknown }) => unknown;
+  export function useState<T>(initialValue: T): [T, (value: T | ((current: T) => T)) => void];
+  export function useEffect(effect: () => void | (() => void), dependencies?: readonly unknown[]): void;
+  export function useMemo<T>(factory: () => T, dependencies: readonly unknown[]): T;
 }
 
 declare module 'react-dom/client' {

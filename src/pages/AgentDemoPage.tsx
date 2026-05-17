@@ -2,6 +2,7 @@ import { runAllAgents } from '../agents/agentRouter';
 import { AgentFlow } from '../components/AgentFlow';
 import { AiMlAgentCard } from '../components/AiMlAgentCard';
 import { DataSourceCard } from '../components/DataSourceCard';
+import { DemoMode } from '../components/DemoMode';
 import { ErpAgentCard } from '../components/ErpAgentCard';
 import { HseAgentCard } from '../components/HseAgentCard';
 import { mockMarliTrainingData } from '../data/mockMarliTrainingData';
@@ -26,6 +27,12 @@ export function AgentDemoPage() {
 
       <DataSourceCard data={mockMarliTrainingData} />
       <AgentFlow />
+      <DemoMode
+        dataset={mockMarliTrainingData}
+        hse={agentOutputs.hse}
+        aiMl={agentOutputs.aiMl}
+        erp={agentOutputs.erp}
+      />
 
       <section className="agent-grid" aria-label="Agentes CTRL+HACK">
         <HseAgentCard output={agentOutputs.hse} />
