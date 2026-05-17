@@ -42,7 +42,7 @@ export function DemoMode({ hse, aiMl, erp, dataset }: DemoModeProps) {
       },
       {
         title: 'HSE Agent',
-        text: 'Interpreta readiness bajo como riesgo preventivo de capacitación, no como accidente real.',
+        text: 'Interpreta readiness bajo como riesgo preventivo de capacitación para revisión interna del piloto.',
         output: [`Riesgo: ${hse.riskLevel}`, `Brecha: ${hse.safetyGap}`],
         event: hse.standardEvent,
         agentLabel: 'Safety',
