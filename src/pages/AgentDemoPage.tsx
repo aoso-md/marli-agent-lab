@@ -4,7 +4,9 @@ import { AiMlAgentCard } from '../components/AiMlAgentCard';
 import { DataSourceCard } from '../components/DataSourceCard';
 import { DemoMode } from '../components/DemoMode';
 import { ErpAgentCard } from '../components/ErpAgentCard';
+import { EcosystemContract } from '../components/EcosystemContract';
 import { HseAgentCard } from '../components/HseAgentCard';
+import { LiveAgentConsole } from '../components/LiveAgentConsole';
 import { mockMarliTrainingData } from '../data/mockMarliTrainingData';
 
 const agentOutputs = runAllAgents(mockMarliTrainingData);
@@ -33,12 +35,20 @@ export function AgentDemoPage() {
         aiMl={agentOutputs.aiMl}
         erp={agentOutputs.erp}
       />
+      <LiveAgentConsole
+        dataset={mockMarliTrainingData}
+        hse={agentOutputs.hse}
+        aiMl={agentOutputs.aiMl}
+        erp={agentOutputs.erp}
+      />
 
       <section className="agent-grid" aria-label="Agentes CTRL+HACK">
         <HseAgentCard output={agentOutputs.hse} />
         <AiMlAgentCard output={agentOutputs.aiMl} />
         <ErpAgentCard output={agentOutputs.erp} />
       </section>
+
+      <EcosystemContract />
 
       <footer className="footer-note">
         Demo con datos mock. MARLI genera evidencia interna y recomendaciones de fase piloto. La
