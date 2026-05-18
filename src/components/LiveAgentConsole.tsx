@@ -207,8 +207,8 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
       <div className="console-layout">
         <section className="console-panel input-panel" aria-labelledby="input-panel-title">
           <div className="console-panel-header">
-            <span>1</span>
-            <h3 id="input-panel-title">Ingresar dataset MARLI</h3>
+            <span aria-hidden="true">→</span>
+            <h3 id="input-panel-title">1 · Ingresar dataset MARLI</h3>
           </div>
           <div className="console-editor-header">
             <label htmlFor="marli-training-dataset-input">Input MARLI Training Dataset</label>
@@ -278,8 +278,8 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
 
         <section className="console-panel run-panel" aria-labelledby="run-panel-title">
           <div className="console-panel-header">
-            <span>2</span>
-            <h3 id="run-panel-title">Ejecutar agentes</h3>
+            <span aria-hidden="true">→</span>
+            <h3 id="run-panel-title">2 · Ejecutar agentes</h3>
           </div>
           <button className="demo-button primary run-cta" type="button" onClick={executeAgents} disabled={isRunning}>
             Ejecutar agentes
@@ -307,8 +307,8 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
 
       <section className="console-panel supervisor-panel" aria-labelledby="supervisor-output-title">
         <div className="console-panel-header">
-          <span>3</span>
-          <h3 id="supervisor-output-title">Output para supervisor</h3>
+          <span aria-hidden="true">→</span>
+          <h3 id="supervisor-output-title">3 · Output para supervisor</h3>
         </div>
         <article className={showResults ? 'supervisor-card active' : 'supervisor-card'}>
           {showResults ? (
@@ -351,8 +351,8 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
 
       <section className="console-panel technical-panel" aria-labelledby="technical-output-title">
         <div className="console-panel-header">
-          <span>4</span>
-          <h3 id="technical-output-title">Output técnico por agente</h3>
+          <span aria-hidden="true">→</span>
+          <h3 id="technical-output-title">4 · Output técnico por agente</h3>
         </div>
         <div className="technical-grid">
           <article className="technical-card hse-card">
@@ -429,8 +429,8 @@ export function LiveAgentConsole({ dataset }: LiveAgentConsoleProps) {
 
       <section className="console-panel event-queue-panel" aria-labelledby="event-queue-title">
         <div className="console-panel-header">
-          <span>5</span>
-          <h3 id="event-queue-title">Eventos listos para ecosistema</h3>
+          <span aria-hidden="true">→</span>
+          <h3 id="event-queue-title">5 · Eventos listos para ecosistema</h3>
         </div>
         {showQueue ? (
           <>

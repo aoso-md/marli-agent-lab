@@ -1,30 +1,37 @@
+import { runAiMlAgent } from '../agents/aiMlAgent';
+import { runErpAgent } from '../agents/erpAgent';
+import { runHseAgent } from '../agents/hseAgent';
 import { LiveAgentConsole } from '../components/LiveAgentConsole';
 import { mockMarliTrainingData } from '../data/mockMarliTrainingData';
 
+const hseLogic = runHseAgent(mockMarliTrainingData);
+const aiMlLogic = runAiMlAgent(mockMarliTrainingData);
+const erpLogic = runErpAgent(mockMarliTrainingData);
+
 const logicCards = [
   {
-    agent: 'HSE',
+    agent: 'HSE Agent',
     focus: 'riesgo preventivo de capacitación',
-    toolCategory: 'Seguridad Industrial & HSE',
-    coreLogic:
-      'Interpreta readiness bajo, conceptos fallidos y validación pendiente como señal preventiva de capacitación.',
-    standardEvent: 'safety_kpi_report',
+    officialCategory: hseLogic.officialCategory,
+    toolsUsed: hseLogic.toolsUsed,
+    coreLogic: hseLogic.logicSummary,
+    standardEvent: hseLogic.standardEvent,
   },
   {
-    agent: 'AI/ML',
+    agent: 'AI/ML Agent',
     focus: 'fricción de aprendizaje/proceso',
-    toolCategory: 'AI & Machine Learning Industrial',
-    coreLogic:
-      'Calcula fricción del módulo con eventos mock, reintentos, respuestas lentas y conceptos repetidos.',
-    standardEvent: 'process_deviation_detected',
+    officialCategory: aiMlLogic.officialCategory,
+    toolsUsed: aiMlLogic.toolsUsed,
+    coreLogic: aiMlLogic.logicSummary,
+    standardEvent: aiMlLogic.standardEvent,
   },
   {
-    agent: 'ERP',
+    agent: 'ERP Agent',
     focus: 'KPI de avance del piloto',
-    toolCategory: 'ERP & Gestión Empresarial',
-    coreLogic:
-      'Convierte operadores completados, brecha de readiness y evidencia interna en KPIs de readiness operativo.',
-    standardEvent: 'project_progress_update',
+    officialCategory: erpLogic.officialCategory,
+    toolsUsed: erpLogic.toolsUsed,
+    coreLogic: erpLogic.logicSummary,
+    standardEvent: erpLogic.standardEvent,
   },
 ];
 
@@ -82,8 +89,12 @@ export function AgentDemoPage() {
               </div>
               <dl className="compact-definition-list">
                 <div>
-                  <dt>Tool category</dt>
-                  <dd>{card.toolCategory}</dd>
+                  <dt>Official category</dt>
+                  <dd>{card.officialCategory}</dd>
+                </div>
+                <div>
+                  <dt>Tools used</dt>
+                  <dd>{card.toolsUsed.join(', ')}</dd>
                 </div>
                 <div>
                   <dt>Core logic</dt>
